@@ -1,0 +1,208 @@
+Import("env")
+import gzip
+import io
+import os
+import shutil
+import subprocess
+import sys
+
+# Builds the Vue app and links it into the FIRMWARE, not a filesystem image.
+#
+# vite writes to web_src/dist, this gzips the output and emits it as C arrays in
+# src/generated/WebAssets.cpp, which the compiler puts in flash .rodata. See
+# include/WebAssets.h for why: one flash instead of two, and no `uploadfs` step
+# to forget.
+#
+# The generated file is git-ignored, so it is rebuilt from source on a fresh
+# checkout. To keep firmware-only edits fast, the npm/vite work is skipped when
+# nothing under web_src/ is newer than the generated file.
+
+PROJECT_DIR = env.get("PROJECT_DIR")
+WEB_SRC = os.path.join(PROJECT_DIR, "web_src")
+DIST = os.path.join(WEB_SRC, "dist")
+GEN_DIR = os.path.join(PROJECT_DIR, "src", "generated")
+GEN_FILE = os.path.join(GEN_DIR, "WebAssets.cpp")
+
+# Only these are gzipped; everything else ships as-is. Anything not listed here
+# gets served with its own type and no Content-Encoding.
+CONTENT_TYPES = {
+    ".html": ("text/html", True),
+    ".js":   ("text/javascript", True),
+    ".css":  ("text/css", True),
+    ".svg":  ("image/svg+xml", True),
+    ".json": ("application/json", True),
+    ".ico":  ("image/x-icon", False),
+    ".png":  ("image/png", False),
+    ".jpg":  ("image/jpeg", False),
+    ".woff2": ("font/woff2", False),
+}
+
+
+def fail(msg):
+    # sys.exit rather than return: a vite error must halt the build, otherwise we
+    # link the PREVIOUS bundle and ship firmware whose UI silently doesn't match.
+    print("[Web] %s" % msg)
+    sys.exit(1)
+
+
+def newest_source_mtime():
+    """Latest mtime across everything the bundle is built from."""
+    newest = 0.0
+    watched_files = [
+        os.path.join(WEB_SRC, "package.json"),
+        os.path.join(WEB_SRC, "vite.config.js"),
+        os.path.join(PROJECT_DIR, "build_web.py"),
+    ]
+    for d in (os.path.join(WEB_SRC, "src"), os.path.join(WEB_SRC, "public")):
+        for root, _dirs, files in os.walk(d):
+            watched_files.extend(os.path.join(root, f) for f in files)
+    for f in watched_files:
+        if os.path.isfile(f):
+            newest = max(newest, os.path.getmtime(f))
+    return newest
+
+
+def run_vite():
+    # shell=True takes a STRING, not a list: the list form runs bare `npm` and
+    # fails on Linux CI, where npm is a shell script rather than an executable.
+    try:
+        subprocess.run("npm --version", capture_output=True, check=True, shell=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        fail("npm not found - required to build the web UI")
+
+    if not os.path.exists(os.path.join(WEB_SRC, "node_modules")):
+        print("[Web] Running npm install...")
+        result = subprocess.run("npm install", cwd=WEB_SRC, shell=True,
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            print(result.stdout)
+            print(result.stderr)
+            fail("npm install failed")
+
+    if os.path.exists(DIST):
+        shutil.rmtree(DIST)
+
+    print("[Web] Building Vue app...")
+    result = subprocess.run("npm run build", cwd=WEB_SRC, shell=True,
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr)
+        fail("vite build failed - fix the Vue/JS error above before re-running")
+
+
+def collect_assets():
+    """(request path, content type, gzip flag, bytes) for everything in dist/."""
+    assets = []
+    for root, _dirs, files in os.walk(DIST):
+        for name in sorted(files):
+            full = os.path.join(root, name)
+            rel = os.path.relpath(full, DIST).replace(os.sep, "/")
+            ext = os.path.splitext(name)[1].lower()
+            ctype, compress = CONTENT_TYPES.get(ext, ("application/octet-stream", False))
+
+            raw = open(full, "rb").read()
+            if compress:
+                # mtime=0: gzip stamps the current time into its header otherwise,
+                # so identical input produced different bytes on every run and
+                # WebAssets.cpp recompiled + relinked even when nothing changed.
+                buf = io.BytesIO()
+                with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=9, mtime=0) as gz:
+                    gz.write(raw)
+                data = buf.getvalue()
+                # A tiny file can grow; only keep the gzip when it actually helps.
+                if len(data) >= len(raw):
+                    data, compress = raw, False
+            else:
+                data = raw
+
+            assets.append(("/" + rel, ctype, compress, data))
+            print("[Web]   %-18s %6d -> %6d bytes%s"
+                  % (rel, len(raw), len(data), " (gzip)" if compress else ""))
+    return assets
+
+
+def c_array(name, data):
+    lines = ["const uint8_t %s[] = {" % name]
+    for i in range(0, len(data), 16):
+        chunk = data[i:i + 16]
+        lines.append("    " + "".join("0x%02x," % b for b in chunk))
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def generate(assets):
+    out = [
+        "// AUTO-GENERATED by build_web.py - do not edit.",
+        "// Regenerated whenever anything under web_src/ changes. Git-ignored.",
+        "",
+        '#include "WebAssets.h"',
+        "",
+        "#include <string.h>",
+        "",
+        "namespace {",
+        "",
+    ]
+    for i, (_path, _ctype, _gz, data) in enumerate(assets):
+        out.append(c_array("kBlob%d" % i, data))
+        out.append("")
+
+    out.append("const WebAssets::Asset kTable[] = {")
+    for i, (path, ctype, gz, data) in enumerate(assets):
+        out.append('    { "%s", kBlob%d, %du, "%s", %s },'
+                   % (path, i, len(data), ctype, "true" if gz else "false"))
+        # "/" is the same bytes as "/index.html" — a second table row rather than a
+        # redirect, so the root loads in one request.
+        if path == "/index.html":
+            out.append('    { "/", kBlob%d, %du, "%s", %s },'
+                       % (i, len(data), ctype, "true" if gz else "false"))
+    out.append("};")
+    out.append("")
+    out.append("}  // namespace")
+    out.append("")
+    out.append("namespace WebAssets {")
+    out.append("")
+    out.append("size_t count() { return sizeof(kTable) / sizeof(kTable[0]); }")
+    out.append("")
+    out.append("const Asset* at(size_t index) {")
+    out.append("    return index < count() ? &kTable[index] : nullptr;")
+    out.append("}")
+    out.append("")
+    out.append("const Asset* find(const char* path) {")
+    out.append("    if (!path) return nullptr;")
+    out.append("    for (size_t i = 0; i < count(); ++i) {")
+    out.append("        if (strcmp(kTable[i].path, path) == 0) return &kTable[i];")
+    out.append("    }")
+    out.append("    return nullptr;")
+    out.append("}")
+    out.append("")
+    out.append("}  // namespace WebAssets")
+    out.append("")
+
+    os.makedirs(GEN_DIR, exist_ok=True)
+    with open(GEN_FILE, "w", encoding="ascii", newline="\n") as f:
+        f.write("\n".join(out))
+
+    total = sum(len(d) for _p, _c, _g, d in assets)
+    print("[Web] Embedded %d assets, %d bytes of flash -> src/generated/WebAssets.cpp"
+          % (len(assets), total))
+
+
+def build_web(*_args, **_kwargs):
+    if not os.path.isdir(WEB_SRC):
+        fail("no web_src/ directory - the UI cannot be built")
+
+    if os.path.isfile(GEN_FILE) and os.path.getmtime(GEN_FILE) >= newest_source_mtime():
+        print("[Web] Bundle up to date, skipping vite")
+        return
+
+    run_vite()
+    assets = collect_assets()
+    if not assets:
+        fail("vite produced no output in web_src/dist")
+    generate(assets)
+
+
+# Eager, at script-load time: the generated .cpp has to exist before SCons scans
+# src/ for sources, or a fresh checkout builds with no UI and no error.
+build_web()

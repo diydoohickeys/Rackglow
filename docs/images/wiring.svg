@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 730" width="980" height="730" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <style>
+    .card { fill: #ffffff; stroke: #d0d7e2; stroke-width: 1.5; rx: 10; }
+    .accent { fill: #eef4ff; stroke: #3b82f6; stroke-width: 1.5; rx: 10; }
+    .warn { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; rx: 10; }
+    .h { font-size: 15px; font-weight: 600; fill: #0f172a; }
+    .t { font-size: 13px; font-weight: 600; fill: #0f172a; }
+    .m { font-size: 12.5px; fill: #1e293b; font-family: ui-monospace, Consolas, monospace; }
+    .s { font-size: 11.5px; fill: #64748b; }
+    .rule { stroke: #e2e8f0; stroke-width: 1; }
+    .wire { stroke: #3b82f6; stroke-width: 2; fill: none; marker-end: url(#a); }
+    .pwr { stroke: #ef4444; stroke-width: 2; fill: none; marker-end: url(#ar); }
+    .title { font-size: 20px; font-weight: 700; fill: #0f172a; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="980" height="730" fill="#ffffff"/>
+  <text class="title" x="24" y="34">Rackglow — wiring</text>
+  <text class="s" x="24" y="54">Every connection is on the WT32-SC01 Plus Extended IO header. Component values and the full circuit: hardware/rackglow.pdf</text>
+
+  <!-- audio chain -->
+  <rect class="card" x="24" y="80" width="200" height="56"/>
+  <text class="h" x="40" y="104">Synth FX send</text>
+  <text class="s" x="40" y="122">Eurorack level, ~10 Vpp</text>
+
+  <rect class="card" x="24" y="164" width="200" height="56"/>
+  <text class="h" x="40" y="188">J1 · 3.5 mm jack</text>
+  <text class="s" x="40" y="206">tip → RV1 · sleeve → GND</text>
+
+  <rect class="accent" x="24" y="248" width="200" height="74"/>
+  <text class="h" x="40" y="272">RV1 · A10k pot</text>
+  <text class="s" x="40" y="290">front panel attenuator</text>
+  <text class="s" x="40" y="308">CW→tip, CCW→GND, wiper→in</text>
+
+  <path class="wire" d="M124 136 V164"/>
+  <path class="wire" d="M124 220 V248"/>
+  <path class="wire" d="M224 291 H268"/>
+
+  <!-- protoboard: the three lines to the board come first, on the board's own rows -->
+  <rect class="card" x="268" y="80" width="320" height="340"/>
+  <text class="h" x="288" y="106">Protoboard · MSGEQ7 (DIP-8)</text>
+  <text class="s" x="288" y="124">three lines to the board, the rest is local</text>
+
+  <text class="m" x="288" y="160">3  OUT    → GPIO12</text>
+  <text class="m" x="288" y="192">4  STROBE ← GPIO13</text>
+  <text class="m" x="288" y="224">7  RESET  ← GPIO21</text>
+
+  <line class="rule" x1="288" y1="248" x2="568" y2="248"/>
+  <text class="s" x="288" y="268">Local — the datasheet's Typical Application:</text>
+
+  <text class="m" x="288" y="291">5  IN     ← 22k → 0.01µF → wiper</text>
+  <text class="m" x="288" y="315">1  VDD    ← +5V   (0.1µF to GND)</text>
+  <text class="m" x="288" y="339">2  VSS    → GND</text>
+  <text class="m" x="288" y="363">6  GND    → 0.1µF → GND</text>
+  <text class="m" x="288" y="387">8  CKIN   → 200k → +5V · 33pF → GND</text>
+  <text class="s" x="288" y="409">Keep the 0.1µF caps next to the chip.</text>
+
+  <!-- board: its pin rows sit on the same lines as the protoboard's -->
+  <rect class="accent" x="628" y="80" width="328" height="436"/>
+  <text class="h" x="648" y="106">WT32-SC01 Plus</text>
+  <text class="s" x="648" y="124">Extended IO header — the only GPIOs broken out</text>
+
+  <text class="m" x="648" y="160">EXT_IO3 · GPIO12  ← MSGEQ7 OUT</text>
+  <text class="m" x="648" y="192">EXT_IO4 · GPIO13  → STROBE</text>
+  <text class="m" x="648" y="224">EXT_IO6 · GPIO21  → RESET</text>
+  <text class="m" x="648" y="256">EXT_IO1 · GPIO10  → 330Ω → LED data</text>
+
+  <text class="s" x="648" y="286">EXT_IO2 · GPIO11 and EXT_IO5 · GPIO14 are free</text>
+  <text class="s" x="648" y="316">GPIO10 is the only ADC1 pin on the header —</text>
+  <text class="s" x="648" y="332">don't move the audio input onto ADC2 pins.</text>
+
+  <line class="rule" x1="648" y1="392" x2="936" y2="392"/>
+  <text class="t" x="648" y="424">Power in</text>
+  <text class="s" x="648" y="450">+5V and GND arrive on the same header as</text>
+  <text class="s" x="648" y="468">the signals, from J3 or J4.</text>
+
+  <path class="wire" d="M588 160 H628"/>
+  <path class="wire" d="M628 192 H588"/>
+  <path class="wire" d="M628 224 H588"/>
+
+  <!-- LED output -->
+  <rect class="card" x="628" y="550" width="328" height="130"/>
+  <text class="h" x="648" y="576">J2 · LED strips</text>
+  <text class="m" x="648" y="604">+5V   · DATA (via 330Ω) · GND</text>
+  <text class="s" x="648" y="628">1000µF across +5V and GND at the terminal.</text>
+  <text class="s" x="648" y="646">Big case 5 × 29 = 145 LEDs · small case 3 × 29 = 87.</text>
+  <text class="s" x="648" y="664">Chained on one data line, alternate strips reversed.</text>
+
+  <path class="wire" d="M792 516 V550"/>
+
+  <!-- power -->
+  <rect class="warn" x="24" y="460" width="564" height="236"/>
+  <text class="h" x="44" y="490">Power — panel and strips, fed separately</text>
+
+  <text class="m" x="44" y="516">J3 · Eurorack 10-pin bus</text>
+  <text class="s" x="44" y="536">+5V and GND only, for the panel. Confirm which pins carry</text>
+  <text class="s" x="44" y="554">them on your bus board before wiring.</text>
+
+  <text class="m" x="44" y="588">J4 · External 5 V supply (screw terminal)</text>
+  <text class="s" x="44" y="608">Feeds the panel, the strips, or both.</text>
+
+  <text class="s" x="44" y="638" fill="#b45309">145 LEDs at full white draw several amps — far more than a Eurorack</text>
+  <text class="s" x="44" y="654" fill="#b45309">5 V rail. Share one and the rail sags: the tell is oscillator pitch</text>
+  <text class="s" x="44" y="670" fill="#b45309">drifting as the lights come up. This build gives them a second supply.</text>
+
+  <path class="pwr" d="M588 492 H628"/>
+  <path class="pwr" d="M588 604 H628"/>
+</svg>

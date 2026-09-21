@@ -1,0 +1,210 @@
+name: Build firmware
+
+# Builds the firmware in the cloud, attaches installable images to a Release on
+# a tag, and publishes the browser flasher to GitHub Pages.
+#
+#   - push to main / pull request  -> build + upload artifacts only
+#   - "Run workflow" (dispatch)    -> same, on demand
+#   - push a tag  vX.Y.Z           -> build + Release + Pages flasher
+#
+# The web UI is not a separate step. `build_web.py` is a PlatformIO pre-script,
+# so `pio run` runs vite itself and embeds the bundle in the image — which is why
+# Node is set up BEFORE the build rather than alongside it.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PIO_ENV: esp32-s3-devkitc-1
+  # partitions.csv puts app1 at 0x400000 + 0x3F0000, so this is an 8 MB board.
+  # The image header encodes that, and the build asserts it below.
+  EXPECTED_FLASH_NIBBLE: "3"
+
+jobs:
+  build:
+    name: Build ${{ github.ref_type == 'tag' && github.ref_name || 'firmware' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # Before PlatformIO: the pre-script shells out to npm during `pio run`.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web_src/package-lock.json
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build
+        run: pio run -e "$PIO_ENV"
+
+      # pioarduino runs `esptool merge-bin` post-build, but a failure there only
+      # PRINTS — the build still succeeds and would ship a missing or malformed
+      # image. So the merged file is verified rather than assumed.
+      - name: Verify the merged image
+        run: |
+          set -euo pipefail
+          BIN=".pio/build/$PIO_ENV/firmware.factory.bin"
+          if [ ! -f "$BIN" ]; then
+            echo "::error::$BIN is missing - esptool merge-bin did not run"
+            exit 1
+          fi
+
+          magic=$(od -An -tx1 -j0 -N1 "$BIN" | tr -d ' ')
+          if [ "$magic" != "e9" ]; then
+            echo "::error::$BIN does not start with the 0xE9 image magic (got 0x$magic)"
+            exit 1
+          fi
+
+          # Header byte 3: low nibble = SPI speed, high nibble = flash size
+          # (0=1MB, 1=2MB, 2=4MB, 3=8MB, 4=16MB). A mismatch means the image was
+          # built for a different flash size than this board has, which bricks
+          # the first install in a way that looks like bad hardware.
+          byte3=$(od -An -tx1 -j3 -N1 "$BIN" | tr -d ' ')
+          nibble="${byte3:0:1}"
+          if [ "$nibble" != "$EXPECTED_FLASH_NIBBLE" ]; then
+            echo "::error::flash-size nibble is 0x$nibble, expected 0x$EXPECTED_FLASH_NIBBLE (header byte 3 = 0x$byte3)"
+            exit 1
+          fi
+
+          mkdir -p out
+          cp "$BIN" out/firmware-merged.bin
+          cp ".pio/build/$PIO_ENV/firmware.bin" out/firmware.bin
+          ls -l out
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: firmware
+          path: out/
+
+  release:
+    name: Release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: firmware
+          path: out
+
+      # firmware-merged.bin is a first install over USB (bootloader + partitions
+      # + app); firmware.bin is the app alone, for an OTA through /update.
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            out/firmware-merged.bin
+            out/firmware.bin
+          generate_release_notes: true
+
+  pages:
+    name: Web flasher
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: firmware
+          path: out
+
+      # 🚨 The .bin is deployed INTO the Pages site, not linked from the Release.
+      # Release asset URLs send no CORS headers, so ESP Web Tools cannot fetch
+      # them cross-origin and the flasher fails after the user picks a port.
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          cp out/firmware-merged.bin site/
+
+          cat > site/manifest.json <<JSON
+          {
+            "name": "Rackglow",
+            "version": "${GITHUB_REF_NAME}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-S3",
+                "parts": [{ "path": "firmware-merged.bin", "offset": 0 }]
+              }
+            ]
+          }
+          JSON
+
+          cat > site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Install Rackglow</title>
+            <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+            <style>
+              :root { color-scheme: dark; }
+              body {
+                margin: 0; min-height: 100vh; display: grid; place-items: center;
+                background: #0d0f14; color: #f3f5fb; text-align: center;
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+                padding: 2rem 1rem;
+              }
+              main { max-width: 32rem; }
+              h1 { font-size: 1.5rem; margin: 0 0 0.75rem; }
+              p { color: #9aa2b8; line-height: 1.55; }
+              .note { font-size: 0.85rem; margin-top: 2rem; }
+              a { color: #6d8fff; }
+            </style>
+          </head>
+          <body>
+            <main>
+              <h1>Rackglow</h1>
+              <p>Plug the board in over USB and install the current firmware straight from this page.</p>
+              <p><esp-web-install-button manifest="manifest.json"></esp-web-install-button></p>
+              <p class="note">
+                Flashing from the browser uses Web Serial, which only desktop Chrome and Edge
+                implement — Firefox, Safari and every phone will show the button as unsupported.
+                The image is a full install and erases saved settings.
+              </p>
+            </main>
+          </body>
+          </html>
+          HTML
+
+          ls -l site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v5
