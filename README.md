@@ -27,6 +27,8 @@ browser, or from Home Assistant.
 - **Updates over WiFi** — WiFi setup, a log viewer and firmware updates come from
   [Preflight](https://github.com/diydoohickeys/Preflight-Arduino).
 
+![VU mode running: the strips tracking the case's output, green through red](docs/images/vu.jpg)
+
 | Colour | Effects | VU |
 |---|---|---|
 | ![Colour tab](docs/images/lcd-colour.png) | ![Effects tab](docs/images/lcd-effects.png) | ![VU tab](docs/images/lcd-vu.png) |
