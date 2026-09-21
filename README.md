@@ -39,7 +39,9 @@ https://github.com/user-attachments/assets/42361cac-358a-4347-8153-37f31353e51d
 ## Hardware
 
 Everything sits behind a 3D-printed panel: the board, and a scrap of protoboard carrying an MSGEQ7
-and a handful of passives. There's no custom PCB to order.
+and a handful of passives. There's no custom PCB to order. The panel's CAD and printable files are
+in [`hardware/printed/`](hardware/printed) — four parts, standard slicer defaults, and only the
+plug cover needs supports.
 
 ![The board, the protoboard and the printed panel, before assembly](docs/images/board.jpg)
 
@@ -57,6 +59,7 @@ and a handful of passives. There's no custom PCB to order.
 | Screw terminals, 2- and 3-way | 1 each | 5 V input; LED output |
 | 10-pin IDC header | 1 | Eurorack bus power (optional, see below) |
 | Protoboard, hook-up wire, JST connectors | | |
+| 3D-printed parts | 4 | Panel, LED holder and two covers: [`hardware/printed/`](hardware/printed) |
 | 5 V supply for the strips | 1 | Roughly 60 mA per LED at full white. Separate from the case's Eurorack supply |
 
 ### Wiring
