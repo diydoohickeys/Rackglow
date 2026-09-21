@@ -9,7 +9,7 @@ pot and the jack — plus a holder for the LED strip and two covers.
 | `curved-light-holder.stl` | LED strip holder | 24.2 × 24.2 × 25.5 mm |
 | `plug-cover.stl` | Plug cover | 68.5 × 32.0 × 40.0 mm |
 | `power-cover.stl` | Power cover | 97.0 × 16.0 × 35.0 mm |
-| `control-panel.step` | Front panel, neutral CAD | opens in any package |
+| `rackglow.step` | All four parts, neutral CAD | opens in any package |
 | `rackglow.f3d` | Fusion 360 source, all four parts | Fusion only |
 
 Standard slicer defaults print all of it. **Only `plug-cover` needs supports**; the rest print

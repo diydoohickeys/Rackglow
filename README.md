@@ -40,8 +40,8 @@ https://github.com/user-attachments/assets/42361cac-358a-4347-8153-37f31353e51d
 
 Everything sits behind a 3D-printed panel: the board, and a scrap of protoboard carrying an MSGEQ7
 and a handful of passives. There's no custom PCB to order. The panel's CAD and printable files are
-in [`hardware/printed/`](hardware/printed) — four parts, standard slicer defaults, and only the
-plug cover needs supports.
+in [`hardware/printed/`](hardware/printed) — four parts as STLs, a STEP and the Fusion source.
+Standard slicer defaults; only the plug cover needs supports.
 
 ![The board, the protoboard and the printed panel, before assembly](docs/images/board.jpg)
 
