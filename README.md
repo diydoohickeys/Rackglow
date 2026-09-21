@@ -7,13 +7,7 @@ browser, or from Home Assistant.
 
 ![Rackglow lighting a modular synth case, the strips running a multi-colour effect](docs/images/hero.jpg)
 
-<!-- TODO: demo video. Drag the .mp4 into this file in GitHub's web editor so it uploads to
-     user-attachments and renders as a player; a committed .mp4 renders as a plain link.
-     Constraints, all verified: 10 MB ceiling on a FREE plan (100 MB only on paid); H.264, because
-     GitHub's own docs say codec support is browser-specific and a phone's HEVC will not play for
-     most viewers; and the poster frame CANNOT be chosen — GitHub builds its own player from the
-     attachment URL and <video> is not in the markdown sanitiser's allowlist, so the thumbnail is
-     the first frame. The hero image above this line is what covers that. -->
+https://github.com/user-attachments/assets/42361cac-358a-4347-8153-37f31353e51d
 
 ## Features
 
