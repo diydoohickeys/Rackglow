@@ -5,7 +5,7 @@ front panel, WS2812 strips behind the rails, and a spectrum analyser listening t
 output — so the lights move with whatever you're patching. Control it from the screen, from a
 browser, or from Home Assistant.
 
-![Rackglow in a synth case, the colour wheel on screen](docs/images/hero.jpg)
+![Rackglow lighting a modular synth case, the strips running a multi-colour effect](docs/images/hero.jpg)
 
 <!-- TODO: demo video. Drag the .mp4 into this file in GitHub's web editor so it uploads to
      user-attachments and renders as a player; a committed .mp4 renders as a plain link.
