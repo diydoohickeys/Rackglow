@@ -1,4 +1,5 @@
 <script setup>
+import { deviceFetch } from '../deviceFetch.js';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { navigate } from '../stores.js';
 import ConfigStatusCard from './ConfigStatusCard.vue';
@@ -27,7 +28,7 @@ const total = computed(() => (parseInt(numStrips.value) || 0) * (parseInt(ledsPe
 // the single-task httpd anyway, and the first one to land blocks the other.
 onMounted(async () => {
   try {
-    const r = await fetch('/get-led-config');
+    const r = await deviceFetch('/get-led-config');
     const data = await r.json();
     if (data.hasLedSettings) {
       numStrips.value = data.numStrips || '';
@@ -40,7 +41,7 @@ onMounted(async () => {
   }
 
   try {
-    const r = await fetch('/get-settings');
+    const r = await deviceFetch('/get-settings');
     settings.value = await r.json();
   } catch (e) {
     console.error('Failed to load settings:', e);
@@ -66,7 +67,7 @@ async function save() {
     body.set('num_strips', String(numStrips.value));
     body.set('leds_per_strip', String(ledsPerStrip.value));
 
-    const r = await fetch('/save-led-config', {
+    const r = await deviceFetch('/save-led-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body
@@ -96,7 +97,7 @@ async function clearState() {
   errorMessage.value = '';
 
   try {
-    const r = await fetch('/clear-led-state', { method: 'POST' });
+    const r = await deviceFetch('/clear-led-state', { method: 'POST' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     status.value = 'cleared';
   } catch (e) {

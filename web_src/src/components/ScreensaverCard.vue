@@ -1,4 +1,5 @@
 <script setup>
+import { deviceFetch } from '../deviceFetch.js';
 import { ref, shallowRef, watch } from 'vue';
 
 // Applied live, no restart. Scene names come from the device, so this list
@@ -34,7 +35,7 @@ async function save() {
     body.set('screensaver_timeout_sec', String(parseInt(timeout.value) || 30));
     body.set('screensaver_scene', String(scene.value));
 
-    const r = await fetch('/save-settings', {
+    const r = await deviceFetch('/save-settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body

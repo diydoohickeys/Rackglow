@@ -1,4 +1,5 @@
 <script setup>
+import { deviceFetch } from '../deviceFetch.js';
 import { computed, onUnmounted, ref } from 'vue';
 
 // Grabs GET /screenshot.png off the device. Fetched into a blob rather than
@@ -24,7 +25,7 @@ async function capture() {
   error.value = '';
   try {
     // The device sends no-store, but a proxy in between might not.
-    const res = await fetch(`/screenshot.png?t=${Date.now()}`);
+    const res = await deviceFetch(`/screenshot.png?t=${Date.now()}`);
     if (!res.ok) {
       error.value = res.status === 409
         ? 'Another screenshot is still being sent — try again in a moment.'

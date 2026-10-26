@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "mqtt_client.h"
+#include <string>
 
 class LEDManager;
 
@@ -37,13 +38,14 @@ public:
     void update();
 
     /// Persist new broker config to NVS and schedule a client restart (called from web handler).
-    void applyConfig(bool enabled, const String& host, uint16_t port,
+    void applyConfig(bool enabled, const String& host, uint16_t port, bool tls,
                      const String& user, const String& pass, const String& prefix);
 
     // Config accessors (reflect the loaded NVS config) — used by the web settings API.
     bool isEnabled() const { return cfg_.enabled; }
     const String& host() const { return cfg_.host; }
     uint16_t port() const { return cfg_.port; }
+    bool tls() const { return cfg_.tls; }
     const String& user() const { return cfg_.user; }
     const String& pass() const { return cfg_.pass; }
     const String& prefix() const { return cfg_.prefix; }
@@ -53,6 +55,9 @@ private:
         bool enabled = false;
         String host;
         uint16_t port = 1883;
+        // mqtts, checked against the CA installed with the signed HTTPS certificate
+        // (Preflight's loadTrustedCa). No CA = no connection, never an unverified one.
+        bool tls = false;
         String user;
         String pass;
         String prefix = "rackglow";
@@ -95,6 +100,7 @@ private:
     Config cfg_;
 
     esp_mqtt_client_handle_t client_ = nullptr;
+    std::string caPem_;             // esp-mqtt keeps the pointer, not a copy
     bool connected_ = false;
     int lastFailureKey_ = 0;        // latched failure signature; MQTT event task only
     bool reconfigurePending_ = false;

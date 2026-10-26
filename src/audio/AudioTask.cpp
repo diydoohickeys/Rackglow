@@ -73,7 +73,7 @@ void startAudioTask() {
     if (s_audioTaskHandle) {
         return;  // already running
     }
-    // Core 0 (next to WiFi/AsyncTCP). Small stack — just the analyzer read +
+    // Core 0 (next to WiFi/httpd). Small stack — just the analyzer read +
     // filters. Priority 1; vTaskDelayUntil keeps the cadence steady regardless.
     const BaseType_t ok = xTaskCreatePinnedToCore(
         audioTask, "audio", 4096, nullptr, 1, &s_audioTaskHandle, 0);

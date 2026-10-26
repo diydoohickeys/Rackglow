@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <Logger.h>
+#include <DeviceCert.h>
 
 #include "UiCommand.h"
 #include "ui/UIManager.h"        // UIManager::postUiCommand
@@ -79,6 +80,7 @@ void MqttManager::loadConfig() {
     cfg_.enabled = prefs.getBool("enabled", false);
     cfg_.host = prefs.getString("host", "homeassistant.local");
     cfg_.port = static_cast<uint16_t>(prefs.getUInt("port", 1883));
+    cfg_.tls = prefs.getBool("tls", false);
     cfg_.user = prefs.getString("user", "");
     cfg_.pass = prefs.getString("pass", "");
     cfg_.prefix = prefs.getString("prefix", "rackglow");
@@ -103,6 +105,16 @@ void MqttManager::startClient() {
     mcfg.broker.address.hostname = cfg_.host.c_str();
     mcfg.broker.address.port = cfg_.port;
     mcfg.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+    if (cfg_.tls) {
+        if (!wifisetup::loadTrustedCa(caPem_)) {
+            Logger.error("MQTT: TLS is on but no CA is installed - sign this device with "
+                         "preflight-certs.ps1 -Device first");
+            return;
+        }
+        mcfg.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+        mcfg.broker.verification.certificate = caPem_.c_str();
+        mcfg.broker.verification.certificate_len = caPem_.size() + 1;
+    }
     mcfg.credentials.client_id = objectId_.c_str();
     if (cfg_.user.length() > 0) {
         mcfg.credentials.username = cfg_.user.c_str();
@@ -123,7 +135,7 @@ void MqttManager::startClient() {
     esp_mqtt_client_register_event(
         client_, static_cast<esp_mqtt_event_id_t>(MQTT_EVENT_ANY), eventHandler, this);
     esp_mqtt_client_start(client_);
-    Logger.info("MQTT: connecting to %s:%u as %s", cfg_.host.c_str(),
+    Logger.info("MQTT: connecting to %s://%s:%u as %s", cfg_.tls ? "mqtts" : "mqtt", cfg_.host.c_str(),
                 static_cast<unsigned>(cfg_.port), objectId_.c_str());
 }
 
@@ -136,20 +148,21 @@ void MqttManager::stopClient() {
     }
 }
 
-void MqttManager::applyConfig(bool enabled, const String& host, uint16_t port,
+void MqttManager::applyConfig(bool enabled, const String& host, uint16_t port, bool tls,
                               const String& user, const String& pass, const String& prefix) {
     Preferences prefs;
     prefs.begin(NVS_NS, false);  // read-write
     prefs.putBool("enabled", enabled);
     prefs.putString("host", host);
     prefs.putUInt("port", port);
+    prefs.putBool("tls", tls);
     prefs.putString("user", user);
     prefs.putString("pass", pass);
     prefs.putString("prefix", prefix.length() ? prefix : String("rackglow"));
     prefs.end();
 
     // Defer the actual client restart to update() on the main loop — esp_mqtt
-    // stop/destroy can block and this runs on the AsyncTCP task.
+    // stop/destroy can block and this runs on the httpd task.
     reconfigurePending_ = true;
     Logger.info("MQTT: config saved (enabled=%d host=%s)", enabled ? 1 : 0, host.c_str());
 }

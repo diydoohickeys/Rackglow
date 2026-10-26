@@ -7,7 +7,7 @@
  * @brief Full-screen OTA progress overlay (title + progress bar).
  *
  * Flag-driven, matching the rest of the UI's cross-task model: show() /
- * updateProgress() / hide() are called from the OTA callbacks on the AsyncTCP
+ * updateProgress() / hide() are called from the OTA callbacks on the httpd
  * task and only set volatile flags. apply() runs on the render task (the sole
  * lv_* owner) and actually creates / updates / destroys the LVGL objects.
  */
@@ -31,7 +31,7 @@ private:
     lv_obj_t* label_ = nullptr;
     lv_obj_t* bar_ = nullptr;
 
-    // Written from the AsyncTCP task (OTA progress callbacks during a web
+    // Written from the httpd task (OTA progress callbacks during a web
     // upload), read/applied on the render task. volatile so the reader sees the
     // latest value; aligned bool/uint8_t writes are atomic on ESP32, and a
     // missed "changed" edge is caught on the next render tick.

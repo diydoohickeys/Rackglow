@@ -5,7 +5,7 @@
 /**
  * @brief UI mutation commands posted from non-UI tasks to the UI owner.
  *
- * The WebSocket handlers run on the AsyncTCP task, but every UI mutation must
+ * The WebSocket handlers run on the httpd task, but every UI mutation must
  * happen on the single task that owns LVGL (today the Arduino loop; later the
  * render task). Instead of calling into LVGL-touching code directly — a data
  * race with LV_OS_NONE and no lock — handlers post a POD command onto a

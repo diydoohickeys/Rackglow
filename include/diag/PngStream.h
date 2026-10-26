@@ -12,10 +12,9 @@
  * `esp_jpeg` is decode-only, so this is the one good option that needs nothing
  * new in `platformio.ini`.
  *
- * Pull-driven by design: `read()` hands back the next slice of the file, which is
- * exactly what AsyncWebServer's chunked response asks for. Each call compresses
- * only enough rows to fill the caller's buffer, so the async task is never blocked
- * for long and the whole image is never held in RAM — rows are read straight out
+ * Pull-driven by design: `read()` hands back the next slice of the file, which
+ * the route sends as one HTTP chunk. Each call compresses only enough rows to fill
+ * the caller's buffer, so the whole image is never held in RAM — rows are read straight out
  * of the mirror, converted RGB565 → RGB888, Up-filtered and fed to the compressor
  * one at a time.
  *
@@ -50,9 +49,8 @@ private:
 
     // Rows compressed per read(). This is the latency bound: deflate emits only
     // when its internal buffers fill, and a flat UI compresses so well that
-    // without a cap one call would swallow all 480 rows and sit on the async task
-    // for hundreds of ms. Each batch ends in a sync flush so there is always
-    // something to hand back.
+    // without a cap one call would swallow all 480 rows before a byte went out.
+    // Each batch ends in a sync flush so there is always something to hand back.
     static constexpr int32_t ROWS_PER_BATCH = 40;
 
     static int putBuf(const void* buf, int len, void* user);

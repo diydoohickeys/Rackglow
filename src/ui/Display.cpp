@@ -108,7 +108,7 @@ const uint16_t screenHeight = 480;
 // full-screen repaint is ceil(480 / rows) bands — 32 at the original 15 rows,
 // 12 here, 8 at 60.
 // ⚠ They are also an INTERNAL RAM lever, and that is the binding constraint: this
-// array competes with WiFi, AsyncTCP, MQTT and OTA. At 60 rows the settled free
+// array competes with WiFi, httpd, MQTT and OTA. At 60 rows the settled free
 // internal heap measured 30 KB, which holds in steady state and fails under load;
 // 40 gives ~12.8 KB of it back for 4 extra bands. Check `internal heap free` in
 // the "LVGL heap settled" line before raising it again.

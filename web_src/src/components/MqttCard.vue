@@ -1,4 +1,5 @@
 <script setup>
+import { deviceFetch } from '../deviceFetch.js';
 import { ref, watch } from 'vue';
 
 // Home Assistant / MQTT broker settings, applied live, no restart.
@@ -11,6 +12,7 @@ const props = defineProps({
 const enabled = ref(false);
 const host = ref('homeassistant.local');
 const port = ref(1883);
+const tls = ref(false);        // mqtts, checked against the CA from preflight-certs.ps1
 const user = ref('');
 const pass = ref('');          // write-only: blank = keep existing on save
 const hasPass = ref(false);    // whether the device already has a stored password
@@ -24,10 +26,18 @@ watch(() => props.settings, (data) => {
   enabled.value = !!data.mqttEnabled;
   if (typeof data.mqttHost === 'string') host.value = data.mqttHost;
   if (typeof data.mqttPort === 'number') port.value = data.mqttPort;
+  tls.value = !!data.mqttTls;
   if (typeof data.mqttUser === 'string') user.value = data.mqttUser;
   hasPass.value = !!data.mqttHasPass;
   if (typeof data.mqttPrefix === 'string') prefix.value = data.mqttPrefix;
 }, { immediate: true });
+
+// The standard ports follow the toggle; a custom port is left alone.
+function toggleTls() {
+  tls.value = !tls.value;
+  if (tls.value && port.value === 1883) port.value = 8883;
+  else if (!tls.value && port.value === 8883) port.value = 1883;
+}
 
 async function save() {
   status.value = 'saving';
@@ -37,11 +47,12 @@ async function save() {
     body.set('mqtt_enabled', enabled.value ? 'true' : 'false');
     body.set('mqtt_host', host.value || '');
     body.set('mqtt_port', String(parseInt(port.value) || 1883));
+    body.set('mqtt_tls', tls.value ? 'true' : 'false');
     body.set('mqtt_user', user.value || '');
     body.set('mqtt_pass', pass.value || '');
     body.set('mqtt_prefix', prefix.value || 'rackglow');
 
-    const r = await fetch('/save-settings', {
+    const r = await deviceFetch('/save-settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body
@@ -95,6 +106,20 @@ async function save() {
           <label for="mqtt_port">Port</label>
           <input id="mqtt_port" type="number" min="1" max="65535" v-model.number="port">
         </div>
+        <div class="control row-control">
+          <label for="mqtt_tls">Encrypt (TLS)</label>
+          <button id="mqtt_tls"
+                  type="button"
+                  class="btn toggle"
+                  :class="{ active: tls }"
+                  @click="toggleTls">
+            {{ tls ? 'On' : 'Off' }}
+          </button>
+        </div>
+        <p v-if="tls" class="text-muted section-desc">
+          The broker's certificate must come from the CA this device was signed with
+          (Preflight's <code>preflight-certs.ps1 -Device</code>, then <code>-Broker</code>).
+        </p>
         <div class="control">
           <label for="mqtt_user">Username</label>
           <input id="mqtt_user" type="text" v-model="user" autocomplete="off">

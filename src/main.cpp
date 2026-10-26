@@ -86,7 +86,6 @@ void setup()
     // Initialize WebUI Manager
     g_webUIManager = new WebUIManager(g_wifiBootManager->getWebServer());
     g_webUIManager->initialize();
-    Logger.attachWebSocket(g_webUIManager->getWebSocket());
 
     // Startup sequence (only if not in setup mode)
     if (g_ledManager) {
@@ -134,7 +133,6 @@ void loop()
 
     if (g_wifiBootManager) g_wifiBootManager->update();
     if (g_ledManager) g_ledManager->update();
-    if (g_webUIManager) g_webUIManager->update();
     if (g_mqttManager) g_mqttManager->update();
     if (g_otaManager) g_otaManager->loop();
 

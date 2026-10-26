@@ -1,4 +1,5 @@
 import { animations, colour, white, vu, animationEnabled, animationValue, brightness } from './stores.js';
+import { deviceFetch } from './deviceFetch.js';
 
 let ws = null;
 let reconnectTimer = null;
@@ -8,8 +9,10 @@ export function connectWebSocket() {
   const url = `${protocol}//${window.location.host}/ws`;
 
   ws = new WebSocket(url);
+  let opened = false;
 
   ws.onopen = () => {
+    opened = true;
     send({ message: 'connect' });
   };
 
@@ -38,7 +41,13 @@ export function connectWebSocket() {
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = async () => {
+    // A refused handshake looks like any other close; a 401 here says it was the session.
+    if (!opened) {
+      try {
+        if ((await deviceFetch('/api/access')).status === 401) return;
+      } catch { /* device unreachable: keep retrying */ }
+    }
     reconnectTimer = setTimeout(connectWebSocket, 2000);
   };
 

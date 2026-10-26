@@ -31,7 +31,9 @@ jobs:
   build:
     name: Build ${{ github.ref_type == 'tag' && github.ref_name || 'firmware' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A cold run recompiles the Arduino framework libraries for custom_sdkconfig (~20+ min on a
+    # runner). A run that times out never saves its cache, so this must cover the cold case.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
 
@@ -46,12 +48,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The framework libraries rebuilt for custom_sdkconfig live in ~/.platformio, but pioarduino
+      # decides whether they match this config from the first line of the GENERATED
+      # sdkconfig.defaults in the project root (gitignored). Without it in the cache, every run
+      # finds no marker and recompiles the framework (~20 min) whatever else was restored.
       - name: Cache PlatformIO
         uses: actions/cache@v5
         with:
           path: |
             ~/.platformio
             .pio
+            sdkconfig.defaults
           key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
           restore-keys: pio-${{ runner.os }}-
 

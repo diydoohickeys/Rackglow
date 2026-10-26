@@ -15,11 +15,7 @@ WifiBootManager::WifiBootManager()
 }
 
 WifiBootManager::~WifiBootManager() {
-    if (bootScreen_) {
-        bootScreen_->cleanup();
-        delete bootScreen_;
-        bootScreen_ = nullptr;
-    }
+    cleanupBootUI();
     if (wifiManager_) {
         delete wifiManager_;
         wifiManager_ = nullptr;
@@ -91,18 +87,17 @@ bool WifiBootManager::initialize(const char* apName, const char* apPassword) {
     config.defaultAPPassword = apPassword;
     config.statusCallback = bootScreen_;
     config.theme = &theme_;
+    // HTTP unless the user turns HTTPS on at /setup.
+    config.offerHttps = true;
 
     wifiManager_ = new WiFiSetupManager(config);
-
-    // Register Logger endpoints before starting WiFi
-    Logger.registerEndpoints(wifiManager_->getWebServer());
-    Logger.info("Logger web endpoints registered");
 
     // Load hostname before begin() so it's available for callbacks
     loadHostname();
 
-    // Start WiFi
+    // Start WiFi; the server exists only once begin() has picked setup mode or joined.
     wifiManager_->begin();
+    Logger.registerEndpoints(wifiManager_->getWebServer());
     Logger.info("Logger web interface available at /logs");
 
     initialized_ = true;
@@ -125,7 +120,7 @@ bool WifiBootManager::isInSetupMode() const {
     return wifiManager_ ? wifiManager_->isInSetupMode() : true;
 }
 
-AsyncWebServer* WifiBootManager::getWebServer() {
+httpd_handle_t WifiBootManager::getWebServer() {
     return wifiManager_ ? wifiManager_->getWebServer() : nullptr;
 }
 
@@ -137,6 +132,9 @@ void WifiBootManager::setBootStatus(const char* status) {
 
 void WifiBootManager::cleanupBootUI() {
     if (bootScreen_) {
+        // Detach first: Preflight keeps reporting through the callback after boot (the /setup
+        // page's network rescan), and a deleted boot screen there crashed the board on every visit.
+        if (wifiManager_) wifiManager_->setStatusCallback(nullptr);
         bootScreen_->cleanup();
         delete bootScreen_;
         bootScreen_ = nullptr;

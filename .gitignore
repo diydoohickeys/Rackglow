@@ -10,6 +10,13 @@ web_src/node_modules
 web_src/dist
 src/generated/
 
+# pioarduino's framework rebuild (custom_sdkconfig in platformio.ini) generates these in the
+# project root on every build; platformio.ini is the source of truth.
+sdkconfig.defaults
+sdkconfig.*
+managed_components/
+.dummy/
+
 # Per-developer IDE + tool state
 .idea/
 

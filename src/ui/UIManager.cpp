@@ -214,7 +214,7 @@ void UIManager::logLvglMemory(const char* when) {
     // max_used is the number that matters: the build-time figure misses the draw
     // layers LVGL allocates while rendering, and those are what overran the pool.
     // Free internal heap is here too because LV_MEM_SIZE is a static array — every
-    // KB given to LVGL is a KB taken from WiFi, AsyncTCP and MQTT.
+    // KB given to LVGL is a KB taken from WiFi, httpd and MQTT.
     Logger.info("LVGL heap %s: %u%% now, peak %u KB of %u KB, largest free %u KB, "
                 "frag %u%% | internal heap free %u KB",
                 when,
@@ -315,7 +315,7 @@ void UIManager::postUiCommand(const UiCommand& cmd) {
     if (!uiCommandQueue_) {
         return;
     }
-    // Non-blocking: never stall the AsyncTCP task. Drop on overflow.
+    // Non-blocking: never stall the httpd task. Drop on overflow.
     xQueueSend(uiCommandQueue_, &cmd, 0);
 }
 

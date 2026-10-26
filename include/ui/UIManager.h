@@ -32,7 +32,7 @@ public:
     void update();
 
     /**
-     * Queues a UI mutation from another task (e.g. AsyncTCP web handlers).
+     * Queues a UI mutation from another task (e.g. httpd web handlers).
      *
      * Non-blocking and safe from any task. Applied on the UI owner task inside
      * update(), and silently DROPPED if the queue is full — these are
@@ -122,14 +122,14 @@ private:
     bool screenInitialized_;
 
     // Screensaver config, loaded from NVS in initializeComponents() and
-    // updatable live from the web. volatile: written from the AsyncTCP task,
+    // updatable live from the web. volatile: written from the httpd task,
     // read on the render task in update() — aligned bool/uint32_t accesses are
     // atomic on ESP32, same pattern as the OTA flags.
     volatile bool screensaverEnabled_;
     volatile uint32_t screensaverIdleMs_;
     volatile int screensaverScene_ = 0;
 
-    // Producers: web handlers on AsyncTCP. Consumer: update() on the UI owner task.
+    // Producers: web handlers on the httpd task. Consumer: update() on the UI owner task.
     QueueHandle_t uiCommandQueue_;
 
     // Sole lv_* owner once started; nullptr until startRenderTask().

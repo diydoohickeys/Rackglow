@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ESPAsyncWebServer.h>
+#include <esp_http_server.h>
 
 /**
  * @brief Registers the app's HTTP routes + REST API on the shared web server.
@@ -15,6 +15,6 @@
 namespace WebApi {
 
 /// Register /test, the LED-config + settings REST API, and the embedded SPA.
-void registerRoutes(AsyncWebServer* server);
+void registerRoutes(httpd_handle_t server);
 
 }  // namespace WebApi

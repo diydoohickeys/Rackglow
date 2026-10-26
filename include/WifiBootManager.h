@@ -27,7 +27,8 @@ public:
     bool isInSetupMode() const;
 
     /// Preflight owns the server; other components register routes on it.
-    AsyncWebServer* getWebServer();
+    /// nullptr until initialize() has run.
+    httpd_handle_t getWebServer();
 
     WiFiSetupTheme* getTheme() { return &theme_; }
 

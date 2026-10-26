@@ -6,6 +6,7 @@
 #include "ui/ui.h"
 #include <WiFiSetupManager.h>
 #include <OTAManager.h>
+#include <string>
 #include <Logger.h>
 #include "led/LEDManager.h"   // g_ledManager
 #include "ui/ColourWheel.h"
@@ -17,16 +18,10 @@ WebUIManager* g_webUIManager = nullptr;
 // Global OTA manager instance
 OTAManager* g_otaManager = nullptr;
 
-WebUIManager::WebUIManager(AsyncWebServer* webServer)
+WebUIManager::WebUIManager(httpd_handle_t server)
     : initialized_(false)
-    , server_(webServer)
-    , webSocket_("/ws")
+    , server_(server)
 {
-}
-
-WebUIManager::~WebUIManager() {
-    // AsyncWebSocket cleanup is handled automatically
-    // Note: server_ is NOT owned by us, so we don't delete it
 }
 
 bool WebUIManager::initialize() {
@@ -39,8 +34,18 @@ bool WebUIManager::initialize() {
         return false;
     }
 
-    initializeWebSocket();
+    if (!wsHub_.begin(server_, [this](const char* text, size_t len) { handleWebSocketMessage(text, len); })) {
+        Logger.error("WebUIManager: could not register /ws");
+    }
     WebApi::registerRoutes(server_);
+
+    // The /logs page live-tails over the same socket.
+    Logger.setOutputCallback([this](LogLevel level, uint32_t timestamp, const char* message) {
+        if (Logger.isWebSocketEnabled()) {
+            const std::string line = Logger.liveTailJson(level, timestamp, message);
+            wsHub_.broadcast(line.data(), line.size());
+        }
+    });
 
     // Initialize OTA Manager with callbacks
     if (!g_otaManager) {
@@ -89,7 +94,7 @@ bool WebUIManager::initialize() {
             if (!success) {
                 // OTA failed (no reboot). Release the strips back to normal and
                 // ask for a non-blocking red flash — do NOT block here (this runs
-                // on the AsyncTCP task; the old delay()-based blink stalled it ~1.2s
+                // on the httpd task; the old delay()-based blink stalled it ~1.2s
                 // and never even rendered, since update() is suspended in OTA mode).
                 if (g_ledManager) {
                     g_ledManager->setOTAMode(false);
@@ -105,37 +110,24 @@ bool WebUIManager::initialize() {
         // Blank partition label = no filesystem OTA. The web UI is linked into
         // the firmware now (WebAssets.h), so there is no filesystem to update and
         // the option would only be a way to wipe a partition by accident.
-        g_otaManager->begin(server_, "", "", "");
+        g_otaManager->begin(server_, "");
     }
 
-    // NOTE: server_->begin() is called by WiFiSetupManager, not here
     Logger.info("Web UI Manager initialized successfully");
 
     initialized_ = true;
     return true;
 }
 
-void WebUIManager::update() {
-    if (!initialized_) {
-        return;
-    }
-    
-    // Clean up disconnected WebSocket clients
-    webSocket_.cleanupClients();
-}
-
 void WebUIManager::notifyClients() {
     if (!initialized_) {
         return;
     }
-    
-    String stateResponse = generateStateResponse();
-    webSocket_.textAll(stateResponse);
+    broadcast(generateStateResponse());
 }
 
-void WebUIManager::initializeWebSocket() {
-    webSocket_.onEvent(staticWebSocketEventHandler);
-    server_->addHandler(&webSocket_);
+void WebUIManager::broadcast(const String& message) {
+    wsHub_.broadcast(message.c_str(), message.length());
 }
 
 String WebUIManager::generateAnimationsResponse() {
@@ -191,57 +183,34 @@ String WebUIManager::generateStateResponse() {
     return output;
 }
 
-void WebUIManager::handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
-    AwsFrameInfo* info = (AwsFrameInfo*)arg;
-    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-        data[len] = 0;
-        String message = (char*)data;
-        JsonDocument request;
-        deserializeJson(request, message);
-
-        String messageType = (const char*)request["message"];
-
-        if (messageType == "connect") {
-            handleConnectMessage();
-        } else if (messageType == "vu") {
-            handleVuMessage(request);
-        } else if (messageType == "white") {
-            handleWhiteMessage(request);
-        } else if (messageType == "brightness") {
-            handleBrightnessMessage(request);
-        } else if (messageType == "animation") {
-            handleAnimationMessage(request);
-        } else if (messageType == "colour") {
-            handleColorMessage(request);
-        }
+void WebUIManager::handleWebSocketMessage(const char* text, size_t len) {
+    JsonDocument request;
+    if (deserializeJson(request, text, len)) {
+        return;
     }
-}
+    const char* messageType = request["message"] | "";
 
-void WebUIManager::onWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
-                                   AwsEventType type, void* arg, uint8_t* data, size_t len) {
-    switch (type) {
-        case WS_EVT_CONNECT:
-            Logger.debug("WebSocket client #%u connected from %s", client->id(), client->remoteIP().toString().c_str());
-            break;
-        case WS_EVT_DISCONNECT:
-            Logger.debug("WebSocket client #%u disconnected", client->id());
-            break;
-        case WS_EVT_DATA:
-            handleWebSocketMessage(arg, data, len);
-            break;
-        case WS_EVT_PING:
-        case WS_EVT_PONG:
-        case WS_EVT_ERROR:
-            break;
+    if (strcmp(messageType, "connect") == 0) {
+        handleConnectMessage();
+    } else if (strcmp(messageType, "vu") == 0) {
+        handleVuMessage(request);
+    } else if (strcmp(messageType, "white") == 0) {
+        handleWhiteMessage(request);
+    } else if (strcmp(messageType, "brightness") == 0) {
+        handleBrightnessMessage(request);
+    } else if (strcmp(messageType, "animation") == 0) {
+        handleAnimationMessage(request);
+    } else if (strcmp(messageType, "colour") == 0) {
+        handleColorMessage(request);
     }
 }
 
 void WebUIManager::handleConnectMessage() {
-    webSocket_.textAll(generateAnimationsResponse());
-    webSocket_.textAll(generateStateResponse());
+    broadcast(generateAnimationsResponse());
+    broadcast(generateStateResponse());
 }
 
-// These handlers run on the AsyncTCP task. They must NOT touch LVGL directly —
+// These handlers run on the httpd task. They must NOT touch LVGL directly —
 // instead they post a POD command to the UI owner, which applies it on the task
 // that owns lv_* (see UIManager::applyUiCommand). notifyClients() is issued
 // there too, after the state has actually changed.
@@ -298,13 +267,6 @@ void WebUIManager::handleColorMessage(const JsonDocument& request) {
     }
 }
 
-// Static WebSocket event handler (needed for C-style callback)
-void WebUIManager::staticWebSocketEventHandler(AsyncWebSocket* server, AsyncWebSocketClient* client,
-                                              AwsEventType type, void* arg, uint8_t* data, size_t len) {
-    if (g_webUIManager) {
-        g_webUIManager->onWebSocketEvent(server, client, type, arg, data, len);
-    }
-}
 
 // Web UI notification helper
 void updateWebUi() {
