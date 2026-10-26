@@ -65,12 +65,8 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      # The retry is load-bearing. On a cold run the framework rebuild upgrades pioarduino's own
-      # penv, which replaces tool-scons (4.8.1 -> 4.11.1) under the running SCons; its link step
-      # then lazily imports SCons.Tool.FortranCommon, gone in 4.11, and fails. The second run
-      # starts on the new SCons with the framework already rebuilt. A real compile error fails both.
       - name: Build
-        run: pio run -e "$PIO_ENV" || pio run -e "$PIO_ENV"
+        run: pio run -e "$PIO_ENV"
 
       # pioarduino runs `esptool merge-bin` post-build, but a failure there only
       # PRINTS — the build still succeeds and would ship a missing or malformed
