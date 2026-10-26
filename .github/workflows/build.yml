@@ -65,6 +65,18 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      # The framework rebuild's second stage runs from pioarduino's own penv, which installs the
+      # newest `pioarduino` (6.2.0.post1). The platform's Core check reads that as the semver
+      # pre-release 6.2.0-post.1, below its `>=6.2.0`, and rejects it. Seed the penv with plain
+      # 6.2.0: the platform only replaces a package that fails its spec, so this one stays.
+      - name: Seed the pioarduino penv
+        run: |
+          set -euo pipefail
+          PENV="$HOME/.platformio/penv"
+          [ -x "$PENV/bin/python" ] || python -m venv "$PENV"
+          python -m pip --python "$PENV/bin/python" install --quiet "pioarduino==6.2.0"
+          "$PENV/bin/python" -m platformio --version
+
       - name: Build
         run: pio run -e "$PIO_ENV"
 
