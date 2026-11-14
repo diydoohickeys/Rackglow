@@ -140,3 +140,7 @@ void WifiBootManager::cleanupBootUI() {
         bootScreen_ = nullptr;
     }
 }
+
+// arduino-esp32 otherwise confirms every new image at boot, so an update that never comes back on
+// the network could not roll back. WiFiSetupManager confirms it once the device is reachable.
+extern "C" bool verifyRollbackLater() { return true; }
